@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Araignée — Raccorder l’éclairage sans se tromper</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="tape" aria-hidden="true"></div>
+
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 40 40" width="40" height="40">
+          <circle cx="20" cy="20" r="7" fill="none" stroke="currentColor" stroke-width="2.2"/>
+          <path d="M20 4v7M20 29v7M4 20h7M29 20h7M8.5 8.5l5 5M26.5 26.5l5 5M8.5 31.5l5-5M26.5 13.5l5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <div>
+        <p class="eyebrow">Schéma novice · couleurs réelles NF C 15-100</p>
+        <h1>Du tableau à l’araignée</h1>
+      </div>
+    </div>
+    <p class="lead">
+      Exemple <strong>couloir</strong> : interrupteurs aux murs, boîte au plafond,
+      1 à 4 éclairages. L’appli montre le parcours <strong>et</strong> le détail
+      des Wago dans la boîte — là où on se trompe le plus souvent.
+    </p>
+  </header>
+
+  <aside class="safety" role="note">
+    <strong>Sécurité.</strong>
+    Coupez le disjoncteur du circuit (et vérifiez l’absence de tension) avant de toucher un fil.
+    Section 1,5&nbsp;mm², protection 10&nbsp;A pour l’éclairage. En cas de doute, un électricien.
+    Ceci est un guide visuel, pas une norme complète.
+  </aside>
+
+  <main>
+    <section class="config" aria-label="Configuration">
+      <fieldset class="choice">
+        <legend>Comment voulez-vous allumer&nbsp;?</legend>
+        <div class="cards" role="radiogroup" aria-label="Type de commande">
+          <label class="card">
+            <input type="radio" name="type" value="mecanique" checked />
+            <span class="card-body">
+              <span class="card-kicker">Le classique</span>
+              <span class="card-title">Interrupteurs</span>
+              <span class="card-desc">1 bouton = simple. 2 = va-et-vient. 3 ou 4 = permutateur au milieu.</span>
+            </span>
+          </label>
+          <label class="card">
+            <input type="radio" name="type" value="telerupteur" />
+            <span class="card-body">
+              <span class="card-kicker">Boutons identiques</span>
+              <span class="card-title">Télérupteur</span>
+              <span class="card-desc">Poussoirs en parallèle. Idéal dès 3 points de commande. Le module reste au tableau.</span>
+            </span>
+          </label>
+        </div>
+      </fieldset>
+
+      <div class="config-row">
+        <fieldset class="choice">
+          <legend>Points de commande (murs)</legend>
+          <div class="stepper" role="radiogroup" aria-label="Nombre d’interrupteurs ou poussoirs">
+            <label><input type="radio" name="points" value="1" /><span>1</span></label>
+            <label><input type="radio" name="points" value="2" checked /><span>2</span></label>
+            <label><input type="radio" name="points" value="3" /><span>3</span></label>
+            <label><input type="radio" name="points" value="4" /><span>4</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="choice">
+          <legend>Éclairages au plafond</legend>
+          <div class="stepper" role="radiogroup" aria-label="Nombre de luminaires">
+            <label><input type="radio" name="lights" value="1" /><span>1</span></label>
+            <label><input type="radio" name="lights" value="2" checked /><span>2</span></label>
+            <label><input type="radio" name="lights" value="3" /><span>3</span></label>
+            <label><input type="radio" name="lights" value="4" /><span>4</span></label>
+          </div>
+        </fieldset>
+      </div>
+      <p class="hint" id="type-hint"></p>
+    </section>
+
+    <section class="sheet" aria-labelledby="plan-title">
+      <div class="sheet-head">
+        <div>
+          <p class="eyebrow">Exemple couloir</p>
+          <h2 id="plan-title">—</h2>
+          <p class="sub" id="plan-sub"></p>
+        </div>
+        <div class="sheet-actions">
+          <button type="button" class="btn" id="btn-print">Imprimer</button>
+        </div>
+      </div>
+      <p class="hover-tip">Survolez un fil ou une Wago : tout le groupe de la même couleur s’allume partout.</p>
+      <div class="schema-wrap" id="schema-wrap">
+        <div id="corridor"></div>
+        <div class="tooltip" id="tooltip" hidden></div>
+      </div>
+      <div class="legend" id="legend"></div>
+      <div class="principle" id="principle"></div>
+    </section>
+
+    <section class="sheet sheet-box" aria-labelledby="box-title">
+      <div class="sheet-head">
+        <div>
+          <p class="eyebrow">Le plus important</p>
+          <h2 id="box-title">Boîte de dérivation ouverte</h2>
+          <p class="sub">Vue du plafond, couvercle enlevé. Chaque Wago = un seul groupe de couleur. Ne mélangez jamais deux couleurs.</p>
+        </div>
+      </div>
+      <div class="schema-wrap" id="box-wrap">
+        <div id="box-detail"></div>
+      </div>
+      <div id="bornier" class="wago-list wago-list-wide"></div>
+    </section>
+
+    <section class="sheet sheet-tableau" id="tableau-sheet" aria-labelledby="tab-detail-title">
+      <div class="sheet-head">
+        <div>
+          <p class="eyebrow">Dans le tableau électrique</p>
+          <h2 id="tab-detail-title">Raccordement du télérupteur</h2>
+          <p class="sub" id="tab-detail-sub">Disjoncteur, module, puis départ vers la boîte — avec les vraies couleurs.</p>
+        </div>
+      </div>
+      <div class="schema-wrap" id="tableau-wrap">
+        <div id="tableau-detail"></div>
+      </div>
+      <div id="tableau-box" class="tableau-box"></div>
+    </section>
+
+    <section class="grid-2">
+      <article class="panel" aria-labelledby="schema-title">
+        <p class="eyebrow">Schéma électrique</p>
+        <h2 id="schema-title">Tableau → araignée → tout</h2>
+        <p class="sub">Même câblage, vue « étoile » classique.</p>
+        <div class="schema-wrap schema-wrap-mini" id="schema-mini-wrap">
+          <div id="schema"></div>
+        </div>
+      </article>
+
+      <article class="panel" aria-labelledby="steps-title">
+        <p class="eyebrow">Ordre de branchement</p>
+        <h2 id="steps-title">Dans le tableau, étape par étape</h2>
+        <ol id="tableau-steps-list" class="steps-list"></ol>
+      </article>
+    </section>
+
+    <section class="panel" aria-labelledby="app-title">
+      <p class="eyebrow">Dos des appareils</p>
+      <h2 id="app-title">Où visser chaque couleur</h2>
+      <p class="sub">Regardez le mécanisme, pas la plaque. Les bornes sont marquées L, P, 1, 2…</p>
+      <div id="appareils" class="devices"></div>
+    </section>
+
+    <section class="grid-2">
+      <article class="panel" aria-labelledby="cables-title">
+        <p class="eyebrow">À tirer</p>
+        <h2 id="cables-title">Liste des câbles</h2>
+        <div id="cables" class="cable-list"></div>
+      </article>
+      <article class="panel" aria-labelledby="mat-title">
+        <p class="eyebrow">À prévoir</p>
+        <h2 id="mat-title">Matériel</h2>
+        <div id="materiel" class="mat-list"></div>
+      </article>
+    </section>
+    <section class="sheet sheet-poussoir" id="poussoir-sheet" aria-labelledby="poussoir-title">
+      <div class="sheet-head">
+        <div>
+          <p class="eyebrow">Schneider · vue arrière</p>
+          <h2 id="poussoir-title">Derrière le poussoir : où brancher les câbles</h2>
+          <p class="sub" id="poussoir-sub">
+            Mécanisme type Odace / Schneider. Les 2 fils viennent de l’araignée ;
+            le télérupteur est dans le tableau <strong>RESI9</strong>.
+          </p>
+        </div>
+      </div>
+      <div class="schema-wrap" id="poussoir-wrap">
+        <div id="poussoir-detail"></div>
+      </div>
+      <div class="poussoir-notes" id="poussoir-notes"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      Couleurs usuelles en logement neuf : phase <b>marron</b>, neutre <b>bleu</b>, terre <b>vert/jaune</b>.
+      Orange, noir, gris, violet, rouge, rose, blanc sont libres (jamais bleu ni vert/jaune pour autre chose).
+      Sur une rénovation, fiez-vous à la <b>fonction</b> si les couleurs diffèrent.
+    </p>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
