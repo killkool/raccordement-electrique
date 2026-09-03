@@ -669,6 +669,52 @@ svg .box-wago.hl-off { opacity: 0.22; }
   margin-right: 4px;
 }
 
+.color-poster {
+  margin: 8px 0 16px;
+  background: #111;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.color-poster img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.color-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.color-legend article {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+
+.color-legend b {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.color-prefile {
+  margin: 16px 0 0;
+  font-size: 14.5px;
+  color: var(--ink-soft);
+}
+
 .cores { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
 
 .core {
