@@ -26,7 +26,7 @@
       </div>
     </div>
     <p class="lead">
-      Exemple <strong>couloir</strong> : interrupteurs aux murs, boîte au plafond,
+      Exemple <strong>couloir ou chambres indépendantes</strong> : interrupteurs aux murs, boîte au plafond,
       1 à 4 éclairages. L’appli montre le parcours <strong>et</strong> le détail
       des Wago dans la boîte — là où on se trompe le plus souvent.
     </p>
@@ -35,7 +35,8 @@
   <aside class="safety" role="note">
     <strong>Sécurité.</strong>
     Coupez le disjoncteur du circuit (et vérifiez l’absence de tension) avant de toucher un fil.
-    Section 1,5&nbsp;mm², protection 10&nbsp;A pour l’éclairage. En cas de doute, un électricien.
+    Empêchez toute remise sous tension et vérifiez avec un vérificateur d’absence de tension adapté.
+    Exemple en 1,5&nbsp;mm², disjoncteur 10&nbsp;A sous différentiel 30&nbsp;mA. En cas de doute, un électricien.
     Ceci est un guide visuel, pas une norme complète.
   </aside>
 
@@ -45,7 +46,15 @@
         <legend>Comment voulez-vous allumer&nbsp;?</legend>
         <div class="cards" role="radiogroup" aria-label="Type de commande">
           <label class="card">
-            <input type="radio" name="type" value="mecanique" checked />
+            <input type="radio" name="type" value="independant" checked />
+            <span class="card-body">
+              <span class="card-kicker">Une commande par pièce</span>
+              <span class="card-title">Chambres indépendantes</span>
+              <span class="card-desc">Une araignée commune. Chaque interrupteur allume uniquement la lampe de sa chambre.</span>
+            </span>
+          </label>
+          <label class="card">
+            <input type="radio" name="type" value="mecanique" />
             <span class="card-body">
               <span class="card-kicker">Le classique</span>
               <span class="card-title">Interrupteurs</span>
@@ -64,7 +73,7 @@
       </fieldset>
 
       <div class="config-row">
-        <fieldset class="choice">
+        <fieldset class="choice" id="points-choice">
           <legend>Points de commande (murs)</legend>
           <div class="stepper" role="radiogroup" aria-label="Nombre d’interrupteurs ou poussoirs">
             <label><input type="radio" name="points" value="1" /><span>1</span></label>
@@ -74,22 +83,27 @@
           </div>
         </fieldset>
         <fieldset class="choice">
-          <legend>Éclairages au plafond</legend>
+          <legend id="lights-label">Chambres (1 lampe et 1 interrupteur chacune)</legend>
           <div class="stepper" role="radiogroup" aria-label="Nombre de luminaires">
             <label><input type="radio" name="lights" value="1" /><span>1</span></label>
-            <label><input type="radio" name="lights" value="2" checked /><span>2</span></label>
+            <label><input type="radio" name="lights" value="2" /><span>2</span></label>
             <label><input type="radio" name="lights" value="3" /><span>3</span></label>
-            <label><input type="radio" name="lights" value="4" /><span>4</span></label>
+            <label><input type="radio" name="lights" value="4" checked /><span>4</span></label>
           </div>
         </fieldset>
       </div>
       <p class="hint" id="type-hint"></p>
     </section>
 
+    <div class="view-tabs" role="tablist" aria-label="Présentation des schémas">
+      <button type="button" role="tab" id="view-organized" data-view="organized" aria-controls="diagrams-panel" aria-selected="true">Vue organisée</button>
+      <button type="button" role="tab" id="view-classic" data-view="classic" aria-controls="diagrams-panel" aria-selected="false" tabindex="-1">Vue classique</button>
+    </div>
+    <div id="diagrams-panel" class="diagrams-panel" role="tabpanel" aria-labelledby="view-organized" tabindex="0">
     <section class="sheet" aria-labelledby="plan-title">
       <div class="sheet-head">
         <div>
-          <p class="eyebrow">Exemple couloir</p>
+          <p class="eyebrow" id="example-label">Exemple chambres</p>
           <h2 id="plan-title">—</h2>
           <p class="sub" id="plan-sub"></p>
         </div>
@@ -97,27 +111,31 @@
           <button type="button" class="btn" id="btn-print">Imprimer</button>
         </div>
       </div>
-      <p class="hover-tip">Survolez un fil ou une Wago : tout le groupe de la même couleur s’allume partout.</p>
+      <p class="hover-tip">Survolez un fil ou une borne : le groupe électrique correspondant est mis en évidence.</p>
       <div class="schema-wrap" id="schema-wrap">
         <div id="corridor"></div>
         <div class="tooltip" id="tooltip" hidden></div>
       </div>
       <div class="legend" id="legend"></div>
       <div class="principle" id="principle"></div>
+      <div id="independent-notes" class="independent-notes" hidden></div>
     </section>
 
     <section class="sheet sheet-box" aria-labelledby="box-title">
       <div class="sheet-head">
         <div>
           <p class="eyebrow">Le plus important</p>
-          <h2 id="box-title">Boîte de dérivation ouverte</h2>
-          <p class="sub">Vue du plafond, couvercle enlevé. Chaque Wago = un seul groupe de couleur. Ne mélangez jamais deux couleurs.</p>
+          <h2 id="box-title">Dans l’araignée : un bornier par ligne</h2>
+          <p class="sub">Chaque borne relie un seul groupe électrique. Deux fils de même couleur ne doivent pas forcément être reliés : repérez leur fonction et leur chambre.</p>
         </div>
       </div>
       <div class="schema-wrap" id="box-wrap">
         <div id="box-detail"></div>
       </div>
-      <div id="bornier" class="wago-list wago-list-wide"></div>
+      <details class="connection-details">
+        <summary>Voir le détail de chaque borne et les consignes de raccordement</summary>
+        <div id="bornier" class="wago-list wago-list-wide"></div>
+      </details>
     </section>
 
     <section class="sheet sheet-tableau" id="tableau-sheet" aria-labelledby="tab-detail-title">
@@ -136,9 +154,9 @@
 
     <section class="grid-2">
       <article class="panel" aria-labelledby="schema-title">
-        <p class="eyebrow">Schéma électrique</p>
-        <h2 id="schema-title">Tableau → araignée → tout</h2>
-        <p class="sub">Même câblage, vue « étoile » classique.</p>
+        <p class="eyebrow" id="schema-eyebrow">Chaque gaine a son repère</p>
+        <h2 id="schema-title">Repérage des départs</h2>
+        <p class="sub" id="schema-caption">Une liaison par ligne, avec la fonction de chaque conducteur.</p>
         <div class="schema-wrap schema-wrap-mini" id="schema-mini-wrap">
           <div id="schema"></div>
         </div>
@@ -234,6 +252,7 @@
         rouge = retour lampes, noir = commande poussoirs (ou l’inverse, mais partout pareil).
       </p>
     </section>
+    </div>
   </main>
 
   <footer>

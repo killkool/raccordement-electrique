@@ -17,9 +17,64 @@
 
   const $ = (id) => document.getElementById(id);
 
+  // Same insulation colour, distinct electrical nets: never merge these returns.
+  for (let i = 1; i <= 4; i++) {
+    COLORS[`retour${i}`] = { ...COLORS.retour, id: `retour${i}`, role: `R${i} · retour chambre ${i}` };
+  }
+
+  function lightWires(plan, i) {
+    return ["terre", "neutre", plan.id === "independant" ? `retour${i + 1}` : "retour"];
+  }
+
+  function planIndependent(n) {
+    const rooms = Array.from({ length: n }, (_, i) => i + 1);
+    const plan = planSimple();
+    return {
+      ...plan,
+      id: "independant", lights: n,
+      title: `${n} chambre${n > 1 ? "s" : ""} · éclairages indépendants`,
+      subtitle: "Un seul circuit d’éclairage, une araignée et un interrupteur simple par chambre. Les commandes sont indépendantes ; la protection au tableau est commune.",
+      hint: "Phase, neutre et terre distribués depuis le même circuit. Un retour R distinct par chambre, même si tous les retours sont orange.",
+      flow: [
+        { type: "box", title: "Tableau", text: "Un circuit protégé" },
+        { type: "wire", color: "phase", text: "Phase commune" },
+        { type: "box", title: `${n} interrupteurs`, text: "Un par chambre" },
+        { type: "wire", color: "retour", text: `${n} retours séparés` },
+        { type: "box", title: `${n} lampes`, text: "Chacune sa commande" },
+      ],
+      groups: [
+        g("terre", "Terre commune", "Conducteur de protection du circuit vers chaque point lumineux. Pour un luminaire de classe II, conserver la terre en attente isolée au point lumineux.", ["Tableau → terre", ...rooms.map(i => `Chambre ${i} → terre au point lumineux`)]),
+        g("neutre", "Neutre commun", "Uniquement le neutre de ce circuit et les départs vers ses lampes. Aucun neutre provenant d’un autre circuit.", ["Tableau → neutre", ...rooms.map(i => `Lampe chambre ${i} → N`)]),
+        g("phase", "Phase permanente", "La phase protégée est distribuée aux bornes L des interrupteurs.", ["Tableau → phase", ...rooms.map(i => `Interrupteur chambre ${i} → L`)]),
+        ...rooms.map(i => g(`retour${i}`, `R${i} · chambre ${i}`, `Borne séparée à 2 entrées : sortie de l’interrupteur ${i} vers la lampe ${i} uniquement. Ne pas relier aux autres retours.`, [`Interrupteur chambre ${i} → sortie 1 (selon notice)`, `Lampe chambre ${i} → L, retour R${i}`])),
+      ],
+      cables: [
+        cable("Tableau → araignée", "3G 1,5 mm² : marron, bleu, vert/jaune", ["phase", "neutre", "terre"]),
+        ...rooms.flatMap(i => [
+          cable(`Araignée → interrupteur chambre ${i}`, `2 conducteurs 1,5 mm² sous gaine : phase + retour R${i}`, ["phase", `retour${i}`]),
+          cable(`Araignée → point lumineux chambre ${i}`, `3 conducteurs 1,5 mm² sous gaine : retour R${i}, neutre, terre`, [`retour${i}`, "neutre", "terre"]),
+        ]),
+      ],
+      devices: rooms.map(i => device(`Interrupteur chambre ${i}`, "Simple allumage · suivre la notice du mécanisme", "simple", [["L", "phase", "Phase permanente"], ["1", `retour${i}`, `R${i} · lampe chambre ${i}`]])),
+      tableau: {
+        lines: ["Un circuit d’éclairage en 1,5 mm², disjoncteur 10 A dans cet exemple, sous différentiel 30 mA.", "Une seule alimentation phase + neutre + terre vers l’araignée."],
+        steps: [
+          { html: "Hors tension, après consignation et vérification d’absence de tension, identifier le départ éclairage protégé et ses conducteurs." },
+          { html: "Dans l’araignée, répartir la <b>phase permanente</b> vers chaque borne <b>L</b> d’interrupteur." },
+          { html: "Répartir le <b>neutre de ce même circuit</b> vers chaque borne N de lampe et la terre vers chaque point lumineux." },
+          ...rooms.map(i => ({ html: `Sur une borne séparée <b>R${i}</b>, relier la sortie de l’interrupteur de la <b>chambre ${i}</b> au conducteur de phase de sa lampe.` })),
+          { html: "Repérer chaque gaine et les deux extrémités des retours. Faire vérifier le raccordement avant mise sous tension." },
+        ],
+      },
+      materiel: ["Protection du circuit : disjoncteur 10 A dans l’exemple et différentiel 30 mA en amont", "Boîte de dérivation accessible et dimensionnée pour tous les départs", `${n} interrupteurs simples et ${n} points lumineux / DCL selon installation`, `3 bornes de distribution à ${n + 1} entrées minimum : phase, neutre, terre`, `${n} bornes à 2 entrées pour les retours séparés R1 à R${n}`, "Conducteurs 1,5 mm², gaines et étiquettes ; bornes adaptées aux conducteurs, un conducteur par entrée selon notice"],
+      schema: { kind: "mecanique", lights: n, tabWires: ["terre", "neutre", "phase"], switches: rooms.map(i => ({ id: `s${i}`, label: `Int. ${i}`, kind: "simple", wires: ["phase", `retour${i}`] })) },
+    };
+  }
+
   function createPlan(type, points, lights) {
     const n = Number(points);
     const L = Number(lights) || 1;
+    if (type === "independant") return planIndependent(L);
     let plan;
     if (type === "telerupteur") plan = planTelerupteur(n);
     else if (n === 1) plan = planSimple();
@@ -477,7 +532,8 @@
 
   /* ---------- Vue couloir ---------- */
 
-  function svgCorridor(plan) {
+  function svgClassicCorridor(plan) {
+    if (plan.id === "independant") return svgClassicRooms(plan);
     const W = 1120;
     const H = 520;
     const L = plan.lights;
@@ -541,88 +597,35 @@
     </svg>`;
   }
 
-  function junctionCeiling(x, y) {
-    return `<g>
-      <rect x="${x - 34}" y="${y - 18}" width="68" height="36" rx="6" fill="#f0a020" stroke="#111" stroke-width="2.5"/>
-      <text x="${x}" y="${y - 2}" text-anchor="middle" font-size="10" font-weight="700" font-family="Bricolage Grotesque, sans-serif">BOÎTE</text>
-      <text x="${x}" y="${y + 12}" text-anchor="middle" font-size="9" fill="#3a2a10">dérivation</text>
-    </g>`;
+  function svgClassicRooms(plan) {
+    const roomWidth = 1040 / plan.lights;
+    return `<svg viewBox="0 0 1120 540" role="img" aria-label="${escapeHtml(plan.title)} · vue classique">
+      ${defsSvg()}
+      <text x="560" y="30" text-anchor="middle" font-size="16" font-weight="700">Une araignée · ${plan.lights} commandes indépendantes</text>
+      ${tableauMini(75, 65, plan)}
+      ${ceilingTube(145, 115, 525, 115, plan.schema.tabWires)}
+      <text x="320" y="95" text-anchor="middle" font-size="12">Phase + neutre + terre du même circuit</text>
+      ${plan.schema.switches.map((_, i) => `<rect x="${46 + i * roomWidth}" y="225" width="${roomWidth - 12}" height="270" rx="12" fill="#f0e9da" stroke="#c4b79f" stroke-width="2"/>`).join("")}
+      ${plan.schema.switches.map((sw, i) => {
+        const center = 40 + (i + 0.5) * roomWidth;
+        return `${dropTube(535 + i * 12, 158, center - 58, 370, sw.wires)}
+          ${dropTube(580 + i * 12, 158, center + 52, 290, lightWires(plan, i))}
+          ${wallSwitch({ ...sw, x: center - 58, y: 405 })}
+          ${lightCeiling(center + 52, 280, `Lampe ${i + 1}`)}
+          <text x="${center}" y="477" text-anchor="middle" font-size="13">Retour R${i + 1} séparé</text>`;
+      }).join("")}
+      ${plan.schema.switches.map((_, i) => {
+        const center = 40 + (i + 0.5) * roomWidth;
+        return `<rect x="${center - 64}" y="232" width="128" height="27" rx="5" fill="#f0e9da"/><text x="${center}" y="252" text-anchor="middle" font-size="17" font-weight="700">Chambre ${i + 1}</text>`;
+      }).join("")}
+      <rect x="510" y="85" width="160" height="75" rx="10" fill="#f0a020" stroke="#111" stroke-width="2"/>
+      <text x="590" y="112" text-anchor="middle" font-weight="700" font-size="15">ARAIGNÉE</text>
+      <text x="590" y="135" text-anchor="middle" font-size="12">3 communs + ${plan.lights} retours</text>
+      <text x="560" y="525" text-anchor="middle" font-size="13">Les retours R1 à R${plan.lights} restent séparés. Voir le bornier ci-dessous.</text>
+    </svg>`;
   }
 
-  function lightCeiling(x, y, label) {
-    return `<g>
-      <line x1="${x}" y1="${y + 18}" x2="${x}" y2="${y + 48}" stroke="#111" stroke-width="1.5"/>
-      <circle cx="${x}" cy="${y + 62}" r="16" fill="#fff3b0" stroke="#111" stroke-width="2"/>
-      <path d="M${x - 7} ${y + 56} l14 12 M${x + 7} ${y + 56} l-14 12" stroke="#c9a227" stroke-width="1.3"/>
-      <text x="${x}" y="${y + 92}" text-anchor="middle" font-size="10" font-family="Bricolage Grotesque, sans-serif" font-weight="700">${label}</text>
-    </g>`;
-  }
-
-  function wallSwitch(s) {
-    const isBp = s.kind === "bp";
-    const dots = s.wires
-      .map((id, i) => {
-        const x = s.x - ((s.wires.length - 1) * 7) / 2 + i * 7;
-        return `<circle cx="${x}" cy="${s.y + 28}" r="3.5" fill="${strokeOf(id)}" stroke="#111" stroke-width="0.6"/>`;
-      })
-      .join("");
-    return `<g class="device-box">
-      <rect x="${s.x - 36}" y="${s.y - 28}" width="72" height="64" rx="8" fill="#f7f1e4" stroke="#111" stroke-width="2.2"/>
-      ${isBp
-        ? `<circle cx="${s.x}" cy="${s.y - 4}" r="10" fill="#fff" stroke="#111" stroke-width="2"/>`
-        : `<rect x="${s.x - 11}" y="${s.y - 16}" width="22" height="22" rx="3" fill="#fff" stroke="#111" stroke-width="2"/>`}
-      <text x="${s.x}" y="${s.y + 18}" text-anchor="middle" font-size="10" font-weight="700" font-family="Bricolage Grotesque, sans-serif">${s.label}</text>
-      ${dots}
-    </g>`;
-  }
-
-  function tableauMini(x, y, plan) {
-    const tel = plan.schema.kind === "telerupteur";
-    return `<g>
-      <rect x="${x}" y="${y}" width="70" height="${tel ? 110 : 78}" rx="6" fill="#d9d4cb" stroke="#111" stroke-width="2"/>
-      <rect x="${x + 6}" y="${y + 6}" width="58" height="16" rx="2" fill="#3d3a36"/>
-      <text x="${x + 35}" y="${y + 18}" text-anchor="middle" fill="#e6b800" font-size="8" font-family="IBM Plex Mono, monospace">TABLEAU</text>
-      <rect x="${x + 12}" y="${y + 30}" width="28" height="34" rx="3" fill="#f3efe6" stroke="#111"/>
-      <rect x="${x + 16}" y="${y + 34}" width="20" height="7" rx="1" fill="#c0392b"/>
-      <text x="${x + 26}" y="${y + 56}" text-anchor="middle" font-size="8">10A</text>
-      ${tel ? `<rect x="${x + 40}" y="${y + 30}" width="22" height="50" rx="3" fill="#ece8de" stroke="#111"/>
-        <circle cx="${x + 47}" cy="${y + 42}" r="2.5" fill="#6b3f24"/>
-        <circle cx="${x + 55}" cy="${y + 42}" r="2.5" fill="#e36b12"/>
-        <circle cx="${x + 47}" cy="${y + 58}" r="2.5" fill="#6d3b96"/>
-        <circle cx="${x + 55}" cy="${y + 58}" r="2.5" fill="#1d6bb8"/>` : ""}
-    </g>`;
-  }
-
-  function ceilingTube(x1, y, x2, y2, wires) {
-    const mid = (x1 + x2) / 2;
-    const paths = wires
-      .map((id, i) => {
-        const off = (i - (wires.length - 1) / 2) * 4;
-        return `<path class="wire" data-group="${id}" d="M${x1} ${y + off} L${x2} ${y2 + off}" fill="none" stroke="${strokeOf(id)}" stroke-width="3" stroke-linecap="round"/>`;
-      })
-      .join("");
-    return `<g>
-      <path d="M${x1} ${y} L${x2} ${y2}" fill="none" stroke="#c9b896" stroke-width="${6 + wires.length * 3}" stroke-linecap="round" opacity="0.55"/>
-      ${paths}
-    </g>`;
-  }
-
-  function dropTube(x1, y1, x2, y2, wires) {
-    const paths = wires
-      .map((id, i) => {
-        const off = (i - (wires.length - 1) / 2) * 4;
-        return `<path class="wire" data-group="${id}" d="M${x1 + off} ${y1} L${x1 + off} ${y1 + 40} L${x2 + off} ${y2}" fill="none" stroke="${strokeOf(id)}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
-      })
-      .join("");
-    return `<g>
-      <path d="M${x1} ${y1} L${x1} ${y1 + 40} L${x2} ${y2}" fill="none" stroke="#c9b896" stroke-width="${5 + wires.length * 2.5}" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
-      ${paths}
-    </g>`;
-  }
-
-  /* ---------- Boîte ouverte (détail Wago) ---------- */
-
-  function svgBoxDetail(plan) {
+  function svgClassicBoxDetail(plan) {
     const groups = plan.groups;
     const ports = buildPorts(plan);
     const cols = Math.min(groups.length, 4);
@@ -742,7 +745,7 @@
 
     return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Boîte de dérivation ouverte">
       ${defsSvg().replace(/id="terre"/g, 'id="terre-box"').replace(/url\(#terre\)/g, "url(#terre-box)")}
-      <text x="${W / 2}" y="28" text-anchor="middle" font-size="14" font-family="Bricolage Grotesque, sans-serif" font-weight="800">Intérieur de la boîte — chaque Wago = une seule couleur</text>
+      <text x="${W / 2}" y="28" text-anchor="middle" font-size="14" font-family="Bricolage Grotesque, sans-serif" font-weight="800">Intérieur de la boîte — une borne par groupe électrique</text>
       <rect x="${padX}" y="${padY}" width="${boxW}" height="${boxH}" rx="16" fill="#ffe08a" stroke="#111" stroke-width="3"/>
       <rect x="${padX + 8}" y="${padY + 8}" width="${boxW - 16}" height="${boxH - 16}" rx="12" fill="#fff6d0" stroke="#d4a017" stroke-width="1.5" stroke-dasharray="5 4"/>
       ${place(topPorts, "top")}
@@ -754,27 +757,7 @@
     </svg>`;
   }
 
-  function buildPorts(plan) {
-    const ports = [{ side: "left", label: "← Tableau", wires: plan.schema.tabWires }];
-    plan.schema.switches.forEach((s, i) => {
-      const side = i % 2 === 0 ? "bottom" : "bottom";
-      ports.push({ side, label: s.label, wires: s.wires });
-    });
-    const L = plan.lights;
-    for (let i = 0; i < L; i++) {
-      ports.push({
-        side: i < Math.ceil(L / 2) ? "top" : "right",
-        label: `Écl. ${i + 1}`,
-        wires: ["terre", "neutre", "retour"],
-      });
-    }
-    // redistribute switches: first half left-ish bottom, keep simple bottom
-    return ports;
-  }
-
-  /* ---------- Schéma étoile (compact) ---------- */
-
-  function svgSchema(plan) {
+  function svgClassicSchema(plan) {
     const W = 900;
     const H = 480;
     const ax = 420;
@@ -797,8 +780,8 @@
 
     const cables = [];
     cables.push(bundle(edge(ax, ay, ar, tab.x + tab.w, tab.y + tab.h / 2), { x: tab.x + tab.w, y: tab.y + tab.h / 2 }, plan.schema.tabWires, "tableau"));
-    lights.forEach((lt) => {
-      cables.push(bundle(edge(ax, ay, ar, lt.x, lt.y + 40), { x: lt.x - 6, y: lt.y + 40 }, ["terre", "neutre", "retour"], lt.label));
+    lights.forEach((lt, i) => {
+      cables.push(bundle(edge(ax, ay, ar, lt.x, lt.y + 40), { x: lt.x - 6, y: lt.y + 40 }, lightWires(plan, i), lt.label));
     });
     sw.forEach((s) => {
       cables.push(bundle(edge(ax, ay, ar, s.x, s.y - 36), { x: s.x, y: s.y - 38 }, s.wires, s.label));
@@ -812,6 +795,162 @@
       ${araigneeSvg(ax, ay, ar)}
       ${sw.map(switchSvg).join("")}
     </svg>`;
+  }
+
+  function svgCorridor(plan) {
+    const independent = plan.id === "independant";
+    const branches = independent
+      ? plan.schema.switches.map((sw, i) => ({ title: `Chambre ${i + 1}`, switches: [sw], light: i }))
+      : [
+          ...plan.schema.switches.map(sw => ({ title: sw.label, switches: [sw] })),
+          ...Array.from({ length: plan.lights }, (_, i) => ({ title: `Éclairage ${i + 1}`, switches: [], light: i })),
+        ];
+    return `<div class="overview">
+      <div class="overview-feed"><span class="overview-tableau">Tableau<br><small>Protection du circuit</small></span>
+        <span class="overview-arrow" aria-hidden="true">→</span>
+        <span class="overview-junction">Araignée commune<br><small>${independent ? `3 distributions + ${plan.lights} retours séparés` : `${plan.groups.length} groupes électriques`}</small></span>
+      </div>
+      <p class="overview-caption">Parcours des gaines · chaque départ revient à la boîte. Les connexions sont détaillées juste en dessous.</p>
+      <div class="room-grid">${branches.map(branch => `<article class="room-card">
+        <h3>${escapeHtml(branch.title)}</h3>
+        <div class="room-devices">${branch.switches.map(sw => branchDevice(sw.wires, sw.label, sw.kind === "bp" ? "Poussoir" : "Interrupteur", false)).join("")}
+          ${branch.light !== undefined ? branchDevice(lightWires(plan, branch.light), `Lampe ${branch.light + 1}`, independent ? `Retour R${branch.light + 1}` : "Allumage commun", true) : ""}
+        </div>
+        <p class="room-caption">${independent ? `Int. ${branch.light + 1} commande uniquement la lampe ${branch.light + 1}.` : branch.light !== undefined ? "Même commande que les autres lampes." : "Commande du groupe de lampes."}</p>
+      </article>`).join("")}</div>
+    </div>`;
+  }
+
+  function branchDevice(wires, label, detail, lamp) {
+    return `<div class="branch-device"><span class="branch-origin">Vers la boîte</span>
+      <svg viewBox="0 0 100 125" role="img" aria-label="${escapeHtml(label)} : ${wires.map(id => escapeHtml(COLORS[id].role)).join(", ")}">
+        ${wires.map((id, i) => {
+          const x = 50 + (i - (wires.length - 1) / 2) * 9;
+          return `<g class="wire" data-group="${id}"><path d="M${x} 8 V78" stroke="${COLORS[id].hex}" stroke-width="5"/>${id === "terre" ? `<path d="M${x} 8 V78" stroke="#f2d400" stroke-width="5" stroke-dasharray="5 5"/>` : ""}</g>`;
+        }).join("")}
+        ${lamp ? '<circle cx="50" cy="98" r="20" fill="#fff3b0" stroke="#1c1712" stroke-width="2"/><path d="M40 88 L60 108 M60 88 L40 108" stroke="#b8860b" stroke-width="2"/>' : '<rect x="28" y="79" width="44" height="42" rx="8" fill="#fffdf8" stroke="#1c1712" stroke-width="2"/><rect x="41" y="89" width="18" height="22" rx="3" fill="#ebe4d4" stroke="#1c1712"/>'}
+      </svg><b>${escapeHtml(label)}</b><small>${escapeHtml(detail)}</small></div>`;
+  }
+
+  function junctionCeiling(x, y) {
+    return `<g>
+      <rect x="${x - 34}" y="${y - 18}" width="68" height="36" rx="6" fill="#f0a020" stroke="#111" stroke-width="2.5"/>
+      <text x="${x}" y="${y - 2}" text-anchor="middle" font-size="10" font-weight="700" font-family="Bricolage Grotesque, sans-serif">BOÎTE</text>
+      <text x="${x}" y="${y + 12}" text-anchor="middle" font-size="9" fill="#3a2a10">dérivation</text>
+    </g>`;
+  }
+
+  function lightCeiling(x, y, label) {
+    return `<g>
+      <line x1="${x}" y1="${y + 18}" x2="${x}" y2="${y + 48}" stroke="#111" stroke-width="1.5"/>
+      <circle cx="${x}" cy="${y + 62}" r="16" fill="#fff3b0" stroke="#111" stroke-width="2"/>
+      <path d="M${x - 7} ${y + 56} l14 12 M${x + 7} ${y + 56} l-14 12" stroke="#c9a227" stroke-width="1.3"/>
+      <text x="${x}" y="${y + 92}" text-anchor="middle" font-size="10" font-family="Bricolage Grotesque, sans-serif" font-weight="700">${label}</text>
+    </g>`;
+  }
+
+  function wallSwitch(s) {
+    const isBp = s.kind === "bp";
+    const dots = s.wires
+      .map((id, i) => {
+        const x = s.x - ((s.wires.length - 1) * 7) / 2 + i * 7;
+        return `<circle cx="${x}" cy="${s.y + 28}" r="3.5" fill="${strokeOf(id)}" stroke="#111" stroke-width="0.6"/>`;
+      })
+      .join("");
+    return `<g class="device-box">
+      <rect x="${s.x - 36}" y="${s.y - 28}" width="72" height="64" rx="8" fill="#f7f1e4" stroke="#111" stroke-width="2.2"/>
+      ${isBp
+        ? `<circle cx="${s.x}" cy="${s.y - 4}" r="10" fill="#fff" stroke="#111" stroke-width="2"/>`
+        : `<rect x="${s.x - 11}" y="${s.y - 16}" width="22" height="22" rx="3" fill="#fff" stroke="#111" stroke-width="2"/>`}
+      <text x="${s.x}" y="${s.y + 18}" text-anchor="middle" font-size="10" font-weight="700" font-family="Bricolage Grotesque, sans-serif">${s.label}</text>
+      ${dots}
+    </g>`;
+  }
+
+  function tableauMini(x, y, plan) {
+    const tel = plan.schema.kind === "telerupteur";
+    return `<g>
+      <rect x="${x}" y="${y}" width="70" height="${tel ? 110 : 78}" rx="6" fill="#d9d4cb" stroke="#111" stroke-width="2"/>
+      <rect x="${x + 6}" y="${y + 6}" width="58" height="16" rx="2" fill="#3d3a36"/>
+      <text x="${x + 35}" y="${y + 18}" text-anchor="middle" fill="#e6b800" font-size="8" font-family="IBM Plex Mono, monospace">TABLEAU</text>
+      <rect x="${x + 12}" y="${y + 30}" width="28" height="34" rx="3" fill="#f3efe6" stroke="#111"/>
+      <rect x="${x + 16}" y="${y + 34}" width="20" height="7" rx="1" fill="#c0392b"/>
+      <text x="${x + 26}" y="${y + 56}" text-anchor="middle" font-size="8">10A</text>
+      ${tel ? `<rect x="${x + 40}" y="${y + 30}" width="22" height="50" rx="3" fill="#ece8de" stroke="#111"/>
+        <circle cx="${x + 47}" cy="${y + 42}" r="2.5" fill="#6b3f24"/>
+        <circle cx="${x + 55}" cy="${y + 42}" r="2.5" fill="#e36b12"/>
+        <circle cx="${x + 47}" cy="${y + 58}" r="2.5" fill="#6d3b96"/>
+        <circle cx="${x + 55}" cy="${y + 58}" r="2.5" fill="#1d6bb8"/>` : ""}
+    </g>`;
+  }
+
+  function ceilingTube(x1, y, x2, y2, wires) {
+    const mid = (x1 + x2) / 2;
+    const paths = wires
+      .map((id, i) => {
+        const off = (i - (wires.length - 1) / 2) * 4;
+        return `<path class="wire" data-group="${id}" d="M${x1} ${y + off} L${x2} ${y2 + off}" fill="none" stroke="${strokeOf(id)}" stroke-width="3" stroke-linecap="round"/>`;
+      })
+      .join("");
+    return `<g>
+      <path d="M${x1} ${y} L${x2} ${y2}" fill="none" stroke="#c9b896" stroke-width="${6 + wires.length * 3}" stroke-linecap="round" opacity="0.55"/>
+      ${paths}
+    </g>`;
+  }
+
+  function dropTube(x1, y1, x2, y2, wires) {
+    const paths = wires
+      .map((id, i) => {
+        const off = (i - (wires.length - 1) / 2) * 4;
+        return `<path class="wire" data-group="${id}" d="M${x1 + off} ${y1} L${x1 + off} ${y1 + 40} L${x2 + off} ${y2}" fill="none" stroke="${strokeOf(id)}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
+      })
+      .join("");
+    return `<g>
+      <path d="M${x1} ${y1} L${x1} ${y1 + 40} L${x2} ${y2}" fill="none" stroke="#c9b896" stroke-width="${5 + wires.length * 2.5}" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+      ${paths}
+    </g>`;
+  }
+
+  /* ---------- Boîte ouverte (détail Wago) ---------- */
+
+  function svgBoxDetail(plan) {
+    const ports = buildPorts(plan);
+    return `<div class="terminal-board">
+      <div class="terminal-board-head"><strong>${plan.groups.length} borniers distincts</strong><span>Une ligne = un groupe relié. Aucune liaison entre les lignes.</span></div>
+      ${plan.groups.map((group, i) => {
+        const members = ports.filter(port => port.wires.includes(group.color));
+        const color = COLORS[group.color];
+        return `<div class="terminal-lane box-wago" data-group="${group.color}" style="--wire-color:${color.hex}">
+          <div class="terminal-lane-label"><span class="terminal-number">${i + 1}</span><div><b>${escapeHtml(group.title)}</b><small>${escapeHtml(color.name)} · ${members.length} fils</small></div></div>
+          <div class="terminal-members">${members.map(port => `<div class="terminal-member"><span class="terminal-contact" aria-hidden="true"></span><span>${escapeHtml(port.label.replace("← ", ""))}</span></div>`).join("")}</div>
+        </div>`;
+      }).join("")}
+      <p class="terminal-board-foot">Disposition pédagogique des connexions, pas implantation physique à l’échelle. Les repères R identifient les retours, même quand ils ont la même couleur.</p>
+    </div>`;
+  }
+
+  function buildPorts(plan) {
+    const ports = [{ side: "left", label: "← Tableau", wires: plan.schema.tabWires }];
+    plan.schema.switches.forEach((s, i) => {
+      const side = i % 2 === 0 ? "bottom" : "bottom";
+      ports.push({ side, label: s.label, wires: s.wires });
+    });
+    const L = plan.lights;
+    for (let i = 0; i < L; i++) {
+      ports.push({
+        side: i < Math.ceil(L / 2) ? "top" : "right",
+        label: `Écl. ${i + 1}`,
+        wires: lightWires(plan, i),
+      });
+    }
+    // redistribute switches: first half left-ish bottom, keep simple bottom
+    return ports;
+  }
+
+  /* ---------- Schéma étoile (compact) ---------- */
+
+  function svgSchema(plan) {
+    return `<div class="departure-list">${plan.cables.map((c, i) => `<div class="departure-row"><span class="num">${i + 1}</span><div><b>${escapeHtml(c.label)}</b><div class="departure-cores">${c.cores.map(id => `<span class="wire-tag"><span class="dot ${id === "terre" ? "terre" : ""}" style="background-color:${COLORS[id].hex}"></span>${escapeHtml(COLORS[id].role)}</span>`).join("")}</div></div></div>`).join("")}</div>`;
   }
 
   function edge(cx, cy, r, tx, ty) {
@@ -1274,14 +1413,43 @@
     return `<h3>Principe en une ligne</h3><div class="flow">${parts.join("")}</div>`;
   }
 
+  let selectedView = "organized";
+
   function render(plan) {
+    const classic = selectedView === "classic";
+    $("diagrams-panel").setAttribute("aria-labelledby", `view-${selectedView}`);
+    document.querySelectorAll("[data-view]").forEach(tab => {
+      const selected = tab.dataset.view === selectedView;
+      tab.setAttribute("aria-selected", String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+    });
+    $("box-title").textContent = classic ? "Boîte de dérivation ouverte" : "Dans l’araignée : un bornier par ligne";
+    $("schema-title").textContent = classic ? "Tableau → araignée → tout" : "Repérage des départs";
+    $("schema-caption").textContent = classic ? "Même câblage, vue en étoile classique." : "Une liaison par ligne, avec la fonction de chaque conducteur.";
+    $("schema-eyebrow").textContent = classic ? "Schéma électrique" : "Chaque gaine a son repère";
+    activeGroup = null;
+    $("tooltip").hidden = true;
     const tel = plan.schema.kind === "telerupteur";
+    const independent = plan.id === "independant";
+    $("points-choice").hidden = independent;
+    $("points-choice").disabled = independent;
+    $("lights-label").textContent = independent ? "Chambres (1 lampe et 1 interrupteur chacune)" : "Éclairages au plafond (allumés ensemble)";
+    $("example-label").textContent = independent ? "Exemple chambres" : "Exemple couloir";
+    $("steps-title").textContent = independent ? "Raccorder les chambres, étape par étape" : "Dans le tableau, étape par étape";
+    $("poussoir-sheet").hidden = independent;
+    $("independent-notes").hidden = !independent;
+    $("independent-notes").innerHTML = independent ? `<h3>Ce qui rend chaque chambre indépendante</h3>
+      <p>Le chemin de chaque commande est : <b>phase commune → L de l’interrupteur → sortie 1 → retour R de cette chambre → L de sa lampe</b>. Le neutre va directement à la lampe.</p>
+      <p>Pour ${plan.lights} chambre${plan.lights > 1 ? "s" : ""} : <b>3 bornes communes à ${plan.lights + 1} entrées minimum</b> (phase, neutre, terre) et <b>${plan.lights} bornes séparées à 2 entrées</b> pour les retours. Tous les retours peuvent être orange : leur repère R1 à R${plan.lights} fait la différence.</p>
+      <p>Ne jamais regrouper les retours : cela ferait allumer plusieurs chambres ensemble. Les neutres ne sont communs qu’aux lampes de <b>ce même circuit</b>. Le disjoncteur coupe toutes ces chambres.</p>
+      <p>Les fils dessinés en orange sont des conducteurs sous gaine. Avec un câble 3G standard vers une lampe, le conducteur marron peut porter ce retour : le repérer R, sans le confondre avec la phase permanente. Bleu = neutre ; vert/jaune = terre.</p>
+      <p>Référence : <a href="https://www.legrand.fr/questions-frequentes/comment-faire-un-branchement-electrique-dinterrupteur" target="_blank" rel="noopener noreferrer">Legrand — branchement d’un interrupteur</a>. Respecter la notice des appareils et faire vérifier l’installation réelle.</p>` : "";
     $("plan-title").textContent = plan.title;
     $("plan-sub").textContent = plan.subtitle;
     $("type-hint").textContent = plan.hint;
-    $("corridor").innerHTML = svgCorridor(plan);
-    $("box-detail").innerHTML = svgBoxDetail(plan);
-    $("schema").innerHTML = svgSchema(plan);
+    $("corridor").innerHTML = classic ? svgClassicCorridor(plan) : svgCorridor(plan);
+    $("box-detail").innerHTML = classic ? svgClassicBoxDetail(plan) : svgBoxDetail(plan);
+    $("schema").innerHTML = classic ? svgClassicSchema(plan) : svgSchema(plan);
     $("tableau-detail").innerHTML = svgTableauDetail(plan);
     $("tab-detail-title").textContent = tel
       ? "Raccordement du télérupteur"
@@ -1466,6 +1634,22 @@
   }
 
   function init() {
+    const tabs = [...document.querySelectorAll("[data-view]")];
+    tabs.forEach((tab, index) => {
+      tab.addEventListener("click", () => {
+        selectedView = tab.dataset.view;
+        render(current());
+      });
+      tab.addEventListener("keydown", event => {
+        const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1
+          : event.key === "ArrowRight" ? (index + 1) % tabs.length
+          : event.key === "ArrowLeft" ? (index + tabs.length - 1) % tabs.length : null;
+        if (next === null) return;
+        event.preventDefault();
+        tabs[next].focus();
+        tabs[next].click();
+      });
+    });
     document.querySelectorAll("input[name=type], input[name=points], input[name=lights]").forEach((el) => {
       el.addEventListener("change", () => render(current()));
     });
